@@ -35,6 +35,7 @@ class raw_env(AECEnv, EzPickle):
         show_unknown_cards_in_game: bool = True,
         show_known_cards_in_opponents_hand: bool = True,
         add_formed_games: bool = True,
+        max_turns: int = 500,
         freeze_formed_games: bool = False,
         logging_level: int = logging.CRITICAL,
     ):
@@ -48,6 +49,8 @@ class raw_env(AECEnv, EzPickle):
 
         self.possible_agents = self.agents[:]
 
+        self.max_turns = max_turns
+
         self.add_formed_games = add_formed_games
 
         self.show_known_cards_in_opponents_hand = show_known_cards_in_opponents_hand
@@ -56,14 +59,18 @@ class raw_env(AECEnv, EzPickle):
 
         self.show_unknown_cards_in_game = show_unknown_cards_in_game
 
-        self.action_spaces = {agent_id: spaces.Discrete(107) for agent_id in self.agents}
+        self.extra_actions = self.pife_match.extra_actions
+
+        self.total_n_actions = self.pife_match.total_n_cards + self.extra_actions
+
+        self.action_spaces = {agent_id: spaces.Discrete(self.total_n_actions) for agent_id in self.agents}
 
         num_features = 0
 
         if self.add_formed_games:
-            num_features = 8
+            num_features = 9
         else:
-            num_features = 5
+            num_features = 6
 
         if not self.show_unknown_cards_in_game:
             num_features = num_features - 1
@@ -71,7 +78,7 @@ class raw_env(AECEnv, EzPickle):
         if not self.show_known_cards_in_opponents_hand:
             num_features = num_features - 1
 
-        shape_obs = (num_features, 104)
+        shape_obs = (num_features, self.pife_match.total_n_cards)
 
         self.observation_spaces = {
             agent_id: spaces.Dict(
@@ -79,7 +86,7 @@ class raw_env(AECEnv, EzPickle):
                     "observation": spaces.Box(
                         low=0, high=1, shape=shape_obs, dtype=np.int8
                     ),
-                    "action_mask": spaces.Box(low=0, high=1, shape=(107,), dtype=np.int8),
+                    "action_mask": spaces.Box(low=0, high=1, shape=(self.total_n_actions,), dtype=np.int8),
                 }
             )
             for agent_id in self.agents
@@ -89,7 +96,7 @@ class raw_env(AECEnv, EzPickle):
         self.rewards = {agent_id: 0 for agent_id in self.agents}
         self.terminations = {agent_id: False for agent_id in self.agents}
         self.truncations = {agent_id: False for agent_id in self.agents}
-        self.infos = {agent_id: {"legal_moves": list(range(0, 107))} for agent_id in self.agents}
+        self.infos = {agent_id: {"legal_moves": list(range(0, self.total_n_actions))} for agent_id in self.agents}
 
         self._agent_selector = agent_selector(self.agents)
         self.agent_selection = self._agent_selector.reset()
@@ -131,15 +138,18 @@ class raw_env(AECEnv, EzPickle):
         if self.show_known_cards_in_opponents_hand:
             one_hot_known_cards_in_opponents_hand_ids = self.pife_match.ids_to_one_hot_hand(self.pife_match.players[agent]['known_cards_in_opponents_hand_ids'])
             obs.append(one_hot_known_cards_in_opponents_hand_ids)
-
+        
         if self.show_unknown_cards_in_game:
             one_hot_unknown_cards_in_games = self.pife_match.ids_to_one_hot_hand(self.pife_match.players[agent]['unknown_cards_in_games'])
             obs.append(one_hot_unknown_cards_in_games)
+        
+        one_hot_important_cards_ids = self.pife_match.ids_to_one_hot_hand(self.pife_match.players[agent]['important_cards'])
+        obs.append(one_hot_important_cards_ids)
 
         if self.add_formed_games:
-            one_hot_game_1 = np.zeros(104, dtype=np.int8)
-            one_hot_game_2 = np.zeros(104, dtype=np.int8)
-            one_hot_game_3 = np.zeros(104, dtype=np.int8)
+            one_hot_game_1 = np.zeros(self.pife_match.total_n_cards, dtype=np.int8)
+            one_hot_game_2 = np.zeros(self.pife_match.total_n_cards, dtype=np.int8)
+            one_hot_game_3 = np.zeros(self.pife_match.total_n_cards, dtype=np.int8)
 
             n_formed_games = len(self.pife_match.players[agent]['formed_games_ids'])
 
@@ -161,7 +171,7 @@ class raw_env(AECEnv, EzPickle):
         return obs
 
     def _get_legal_moves(self, agent):
-        legal_moves = np.zeros(107, dtype=np.int8)
+        legal_moves = np.zeros(self.total_n_actions, dtype=np.int8)
         n_cards_in_hands = len(self.pife_match.players[agent]['hand_ids'])
         n_formed_games = len(self.pife_match.players[agent]['formed_games_ids'])
         last_action = self.pife_match.players[agent]['last_action']
@@ -170,17 +180,17 @@ class raw_env(AECEnv, EzPickle):
             legal_moves[0] = 1
             legal_moves[1] = 1
         else:
-            legal_moves[self.pife_match.players[agent]['hand_ids'] + 3] = np.ones(len(self.pife_match.players[agent]['hand_ids']), dtype=np.int8)
+            legal_moves[self.pife_match.players[agent]['hand_ids'] + self.extra_actions] = np.ones(len(self.pife_match.players[agent]['hand_ids']), dtype=np.int8)
 
         if last_action == 1:
-            legal_moves[self.pife_match.players[agent]['hand_ids'][-1:] + 3] = 0
+            legal_moves[self.pife_match.players[agent]['hand_ids'][-1:] + self.extra_actions] = 0
 
         if self.freeze_formed_games:
             for formed_game in self.pife_match.players[agent]['formed_games_ids']:
-                legal_moves[np.array(formed_game, dtype=np.int8) + 3] = 0 
+                legal_moves[np.array(formed_game, dtype=np.int8) + self.extra_actions] = 0 
 
         if n_formed_games == 3:
-            legal_moves = np.zeros(107, dtype=np.int8)
+            legal_moves = np.zeros(self.total_n_actions, dtype=np.int8)
             legal_moves[2] = 1
 
         return legal_moves
@@ -196,6 +206,15 @@ class raw_env(AECEnv, EzPickle):
         # check if input action is a valid move (0 == empty spot)
         assert self._get_legal_moves(self.agent_selection)[action] == 1, "played illegal move"
 
+        reward = 0
+
+        if action > 2:
+            actual_discarded_card = action - self.extra_actions
+            if actual_discarded_card in self.pife_match.players[self.agent_selection]['important_cards']:
+                reward = -0.5
+            else:
+                reward = 0.5
+
         before_action_n_formed_games = len(self.pife_match.players[self.agent_selection]['formed_games_ids'])
 
         # play turn
@@ -203,33 +222,33 @@ class raw_env(AECEnv, EzPickle):
 
         after_action_n_formed_games = len(self.pife_match.players[self.agent_selection]['formed_games_ids'])      
         
-        reward = 0
-
         if before_action_n_formed_games < after_action_n_formed_games:
-            reward = reward + 0.1
+            reward = reward + 0.2
         elif before_action_n_formed_games > after_action_n_formed_games:
-            reward = reward - 0.1
+            reward = reward - 0.2
 
         self.rewards[self.agent_selection] = self.rewards[self.agent_selection] + reward
-
-        # update infos
-        if next_turn:
-            next_agent = self._agent_selector.next()
 
         if not self.pife_match.game_over:
             pass
         else:
             for agent in self.agents:
                 if agent == self.pife_match.winner:
-                    self.rewards[agent] = self.rewards[agent] + 2
+                    self.rewards[agent] = self.rewards[agent] + 1
                 else:
-                    self.rewards[agent] = self.rewards[agent] - 2
+                    self.rewards[agent] = self.rewards[agent] - 1
                 # once either play wins or there is a draw, game over, both players are done
                 self.terminations = {agent_id: True for agent_id in self.agents}
+
+        if self.max_turns == self.pife_match.actual_turn:
+            self.truncations = {agent_id: True for agent_id in self.agents}
+            for agent in self.agents:
+                    self.rewards[agent] = 0
 
         # Switch selection to next agents
 
         if next_turn:
+            next_agent = self._agent_selector.next()
             self._cumulative_rewards[self.agent_selection] = 0 
             self.agent_selection = next_agent
 

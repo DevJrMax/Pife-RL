@@ -35,9 +35,10 @@ O espaço de observação principal é 8x104 com as linhas representando diferen
 |     2     | Cartas na pilha de descarte (excluindo a do topo) |
 |     3     | Cartas conhecidas do oponente (cartas retiradas da pilha de descarte, mas não descartadas)                     |
 |     4     | Cartas desconhecidas (cartas não retiradas do deck ou na mão do oponente)                                |
-|     5     | 1o jogo formado                                |
-|     6     | 2o jogo formado                                |
-|     7     | 3o jogo formado                                |
+|     5     | Cartas que podem formar um jogo                              |
+|     6     | 1o jogo formado                                |
+|     7     | 2o jogo formado                                |
+|     8     | 3o jogo formado                                |
 
 <br>
 
@@ -48,9 +49,9 @@ O espaço de observação principal é 8x104 com as linhas representando diferen
 |    26 - 38   | Baralho Azul - Ouros <br>_`26`: Ace, `27`: 2, ..., `38`: King_ |
 |    39 - 51   | Baralho Azul - Paus <br>_`39`: Ace, `40`: 2, ..., `51`: King_    |
 |    52 - 64    | Baralho Vermelho - Espadas <br>_`52`: Ace, `53`: 2, ..., `64`: King_     |
-|    65 - 78   | Baralho Vermelho - Copas <br>_`65`: Ace, `66`: 2, ..., `78`: King_   |
-|    79 - 91   | Baralho Vermelho - Ouros <br>_`79`: Ace, `80`: 2, ..., `91`: King_ |
-|    92 - 104   | Baralho Vermelho - Paus <br>_`92`: Ace, `93`: 2, ..., `104`: King_    |
+|    65 - 77   | Baralho Vermelho - Copas <br>_`65`: Ace, `66`: 2, ..., `77`: King_   |
+|    78 - 90   | Baralho Vermelho - Ouros <br>_`78`: Ace, `79`: 2, ..., `90`: King_ |
+|    91 - 103   | Baralho Vermelho - Paus <br>_`91`: Ace, `92`: 2, ..., `103`: King_    |
 
 <br>
 
@@ -65,9 +66,14 @@ Existem 107 ações no Pife.
 
 | Action ID | Action                                                                                                                                                                                 |
 |:---------:|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|     0     | Draw a card                                                                                                                                                                            |
-|     1     | Pick top card from Discard pile                                                                                                                                                                                                                                                                                                                     |
-|     2     | Win                                                                                                                                                                                    |
+|     0     | Draw a card  |
+|     1     | Pick top card from Discard pile |
+|     2     | Win |
+|     3     | Freeze formed game 1 |
+|     4     | Freeze formed game 2 |
+|     5     | Freeze formed game 3 |
+
+
 |   3 - 54  | Discarta carta baralho azul <br>_`3`: A-Espadas, `4`: 2-Espadas, ..., `15`: K-Espadas <br> `16`: A-Copas ... `28`: K-Copas<br>`29`: A-Ouros ... `41`: K-Ouros<br>`42`: A-Paus ... `54`: K-Paus_ |
 |  55 - 106 | Discarta carta baralho vermelho <br>_`55`: A-Espadas, `56`: 2-Espadas, ..., `67`: K-Espadas<br>`68`: A-Copas ... `80`: K-Copas<br>`81`: A-Ouros ... `93`: K-Ouros<br>`94`: A-Paus ... `106`: K-Paus_       |
 

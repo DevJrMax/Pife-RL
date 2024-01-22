@@ -8,7 +8,7 @@ from .utils import *
 
 class PifeMatch():
   def __init__(self, agents=[], logging_level=logging.INFO):
-      self.__total_n_cards = 104
+      self.total_n_cards = 104
       self.__n_cards_in_hand = 9
       self.__max_n_cards_in_hand = 10
       self.game_over = False
@@ -17,6 +17,8 @@ class PifeMatch():
       self.actual_turn = 1
       self.n_games_for_win = 3
       self.n_shuffled_pile_in_deck = 0
+
+      self.extra_actions = 3
 
       self.deck_game_ids = np.array([], dtype=np.int8)
       self.pile_game_ids = np.array([], dtype=np.int8)
@@ -38,6 +40,7 @@ class PifeMatch():
             'formed_games_ids': np.array([], dtype=np.int8),
             'known_cards_in_opponents_hand_ids': np.array([], dtype=np.int8),
             'unknown_cards_in_games':  np.array([], dtype=np.int8),
+            'important_cards': np.array([], dtype=np.int8),
             'last_action': 0
         }
 
@@ -92,7 +95,7 @@ class PifeMatch():
 
     return is_a_game
 
-  def get_formed_games(self, hand):
+  def get_formed_games(self, hand, n_cards = 3):
     games = []
     orders = [Order_hand_by.SUIT, Order_hand_by.NUMBER]
 
@@ -104,7 +107,7 @@ class PifeMatch():
         # Removing games
         available_cards_ids, games = self.remove_games_from_hand(available_cards_ids, games)
 
-        available_combinations = list(itertools.combinations(available_cards_ids, 3))
+        available_combinations = list(itertools.combinations(available_cards_ids, n_cards))
         has_game = False
 
         for combination in available_combinations:
@@ -122,8 +125,6 @@ class PifeMatch():
 
     formed_games =  []
 
-    n_formed_games = len(games)
-
     for index, game in enumerate(games, 1):
       game_array = np.array(list(game), dtype=np.int8)
       formed_games.append(game_array)
@@ -131,6 +132,27 @@ class PifeMatch():
     formed_games = np.array(formed_games)
 
     return formed_games
+  
+  def get_important_cards(self, hand):
+    possible_games = []
+
+    hand = self.order_hand(hand=hand, by=Order_hand_by.SUIT)
+    available_cards_ids = list(hand.keys())
+
+    available_combinations = list(itertools.combinations(available_cards_ids, 2))
+
+    for combination in available_combinations:
+      if self.check_game(combination, hand):
+        if combination not in possible_games:
+          possible_games.append(combination)
+    
+    important_cards = list(sum(possible_games,()))
+
+    important_cards = list(dict.fromkeys(important_cards))
+    
+    important_cards = np.array(list(important_cards), dtype=np.int8)
+
+    return important_cards
   # Check games functions #
 
   def plot_hand(self, player_id = None, order=None):
@@ -188,7 +210,7 @@ class PifeMatch():
     return hand_gui_schema_ordered
 
   def get_unknown_cards_in_games(self, agent_id):
-    unknown_cards_in_games = np.arange(0, self.__total_n_cards, 1, dtype=np.int8)
+    unknown_cards_in_games = np.arange(0, self.total_n_cards, 1, dtype=np.int8)
     unknown_cards_in_games = np.setdiff1d(unknown_cards_in_games, self.players[agent_id]['hand_ids'])
     unknown_cards_in_games = np.setdiff1d(unknown_cards_in_games, self.players[agent_id]['known_cards_in_opponents_hand_ids'])
     unknown_cards_in_games = np.setdiff1d(unknown_cards_in_games, self.pile_game_ids)
@@ -224,7 +246,7 @@ class PifeMatch():
     self.pile_game_ids = np.array([], dtype=np.int8)
 
   def ids_to_one_hot_hand(self, card_ids):
-      one_hot_cards = np.zeros((self.__total_n_cards,), dtype=np.int8)
+      one_hot_cards = np.zeros((self.total_n_cards,), dtype=np.int8)
       one_hot_cards[card_ids] = np.ones((len(card_ids),), dtype=np.int8)
       return one_hot_cards
 
@@ -234,6 +256,7 @@ class PifeMatch():
     self.players[player_id]['formed_games_ids'] = self.get_formed_games(self.players[player_id]['hand_gui_schema'])
     self.players[player_id]['hand_gui_schema'] = self.order_gui_schema_by_games(player_id)
     self.players[player_id]['unknown_cards_in_games'] = self.get_unknown_cards_in_games(player_id)
+    self.players[player_id]['important_cards'] = self.get_important_cards(self.players[player_id]['hand_gui_schema'])
 
   def start_game(self):
     # Reset game over status
@@ -249,7 +272,7 @@ class PifeMatch():
     self.actual_turn = 1
 
     # Reset the deck
-    self.deck_game_ids = np.arange(0, self.__total_n_cards, 1, dtype=np.int8)
+    self.deck_game_ids = np.arange(0, self.total_n_cards, 1, dtype=np.int8)
 
     # Reset the pile
     self.pile_game_ids = np.array([], dtype=np.int8)
@@ -323,7 +346,6 @@ class PifeMatch():
         new_hand_ids = np.append(self.players[agent_id]['hand_ids'], [drawed_card])
         self._update_player(agent_id, new_hand_ids)
         self.players[agent_id]['last_action'] = action
-        # self.check_winner(agent_id)
 
       else:
         pass
@@ -340,7 +362,7 @@ class PifeMatch():
 
     ## 3 - Card to discard
     else:
-      card_to_discard = action - 3
+      card_to_discard = action - self.extra_actions
 
       if n_cards_in_hand == self.__max_n_cards_in_hand:
         if np.any(self.players[agent_id]['hand_ids'] == card_to_discard):
